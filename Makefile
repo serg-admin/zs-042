@@ -1,5 +1,7 @@
+# makefile, written by guido socher
 PRG            = zs-042
 OBJ            = $(PRG).o
+MODULES = tools
 #MCU_TARGET     = at90s2313
 #MCU_TARGET     = at90s2333
 #MCU_TARGET     = at90s4414
@@ -63,6 +65,14 @@ DEFS           = -I /usr/lib/avr/include/
 LIBS           =
 
 # Override is only needed by avr-lib build system.
+SRCDIRS = $(MODULES)
+INCLUDE = $(addprefix -I/, $(MODULES))
+CSRC    = $(wildcard $(addsuffix /*.c,$(SRCDIRS)))
+vpath
+vpath %.c $(SRCDIR)
+vpath %.h $(SRCDIR)
+# Objects that must be built in order to link (Объявляем объектные файлы).
+OBJS = $(CSRC:.c=.o)
 
 override CFLAGS        = -g -Wall $(OPTIMIZE) -mmcu=$(MCU_TARGET) $(DEFS)
 override LDFLAGS       = -Wl,-Map,$(PRG).map
@@ -74,17 +84,20 @@ all: $(PRG).hex
 #-------------------
 $(PRG).hex : $(PRG).out
 	$(OBJCOPY) -R .eeprom -O ihex $(PRG).out $(PRG).hex
-$(PRG).out : $(OBJ)
-	$(CC) $(CFLAGS) -o $(PRG).out $(LDFLAGS) $(OBJ)
-$(OBG) : $(PRG).c
+$(PRG).out : $(OBJ) $(OBJS)
+	echo $(OBJS)
+	$(CC) $(CFLAGS) -o $(PRG).out $(LDFLAGS) $(OBJ) $(OBJS)
+$(OBJ) : $(PRG).c
 	$(CC) $(CFLAGS) -Os -c $(PRG).c
-pro_mini: $(PRG).hex
+%.o : %.c
+	$(CC) -c $(CFLAGS) $< -o $@
+pro_mini: $(PRG).c
 	avrdude -c arduino -F -P /dev/ttyUSB0 -p $(MCU_TARGET) -b 57600  -U flash:w:$(PRG).hex:i
 leonardo: $(PRG).hex
 	avrdude -c avr109 -F -P /dev/ttyACM1 -p m32u4 -U flash:w:$(PRG).hex:i
 #-------------------
 clean:
-	rm -f *.o *.map *.out *.lst *.hex
+	rm -f *.o *.map *.out *.lst *.hex *.elf
 #-------------------
 get_asm: $(PRG).c
 	$(CC) $(CFLAGS) -o $(PRG).elf $(OBJ)
