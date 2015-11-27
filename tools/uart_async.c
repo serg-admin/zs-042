@@ -20,7 +20,7 @@ ISR (USART_TX_vect) {
 void uart_async_init(void) {
    // Разрешить передачу через порт.
    UCSR0B |= _BV(TXEN0);
-   // Активировать прерывание по окончанию передачи.
+   // Активировать прерывание.
    UCSR0B |= _BV(TXCIE0);
    // Устанавливаем скорость порта.
    UBRR0 = MYBDIV;
@@ -29,7 +29,7 @@ void uart_async_init(void) {
 // Возвращает количество свободных байт в очереди USART.
 char uart_getBufSpace() {
   if (uart_rPos <= uart_wPos) {
-    return UART0_BUFER_SIZE - uart_wPos + uart_rPos;
+    return UART0_BUFER_SIZE - uart_wPos + uart_rPos - 1;
   } else {
     return uart_rPos - uart_wPos - 1;
   }
@@ -37,12 +37,8 @@ char uart_getBufSpace() {
 
 // Отправляет один байт в очередь USART. В случае если очередь занята - ждет.
 void uart_putChar(char c) {
-/*  if ((UCSR0A & (1<<UDRE0)) && (uart_wPos == uart_rPos)) {
-    UDR0 = c;
-    return;
-  }*/
-  cli();
-  while(uart_getBufSpace() == 0) sleep_mode();
+  if (uart_getBufSpace() == 0) return;
+  UCSR0B &= ~(_BV(TXCIE0));
   uart_buf[uart_wPos++] = c;
   if (uart_wPos >= UART0_BUFER_SIZE) uart_wPos = 0;
   if (UCSR0A & _BV(UDRE0)){
@@ -51,7 +47,7 @@ void uart_putChar(char c) {
       if (uart_rPos >= UART0_BUFER_SIZE) uart_rPos = 0;
     }
   }
-  sei();
+  UCSR0B |= _BV(TXCIE0);
 }
 
 // Отправляет 0 терменированную строку в очередь USART.

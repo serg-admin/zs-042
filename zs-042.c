@@ -14,7 +14,7 @@
 
 #define FOSC 16000000 // Clock Speed
 #define BAUD 38400
-#define USART0_BUFER_SIZE 16
+#define USART0_BUFER_SIZE 32
 #include "tools/uart_async.h"
 
 void ERROR(void) {
@@ -23,7 +23,7 @@ void ERROR(void) {
 
 unsigned char i2c_state;
 void i2c_init(void) {
-  TWBR = 0x10; //Делитель = TWBR * 2.
+  TWBR = 0xFF; //Делитель = TWBR * 2.
   TWCR |= _BV(TWIE); //Включить прерывание.
   i2c_state = I2C_STATE_FREE;
 }
@@ -53,8 +53,6 @@ unsigned char i2c_send(char addr, unsigned char* buf, unsigned char size, void (
 }
 
 void i2c_send_isp(unsigned char state) {
-  uart_write("ISP state = ");
-  uart_writelnHEX(state);
   switch(state) {
     case TW_START : //Шина I2C переведена в состояние start transmission. Запрашиваем устройство.
       TWDR = i2c_send_dev_addr;
@@ -69,23 +67,22 @@ void i2c_send_isp(unsigned char state) {
         TWDR = i2c_send_buf[i2c_send_buf_pos++];
         TWCR = (1<<TWINT) | (1<<TWEN) | _BV(TWIE);
       } else {
-        uart_writeln("STOP TWI");
-        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO);// | _BV(TWIE); // Остановка передача
+        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE); // Остановка передача
         i2c_state = I2C_STATE_FREE;
-        i2c_callback();
+        i2c_callback(0);
       }
       break;
-    default : TWCR = 0;
+    default :
+      TWCR |= _BV(TWINT);
+      i2c_callback(state);
   }
 }
 
 ISR (TWI_vect) {
   cli();
-  TWCR = 0;
-  uart_write("i2c_state = ");
-  uart_writelnHEX(i2c_state);
   switch (i2c_state) {
     case I2C_STATE_SEND : i2c_send_isp(TWSR & 0xF8); break;
+    default : uart_writelnHEX(TWSR & 0xF8);
   }
   sei();
 }
@@ -94,13 +91,13 @@ ISR (TWI_vect) {
 ISR (TIMER1_OVF_vect) {
   cli();
   ledSw;
-//  init_i2c();
   sei();
 }
 
 ISR (BADISR_vect) {
   cli();
 //  uart_writeln("BAD ISP");
+  TWSR = 0;
   sei();
 }
 
