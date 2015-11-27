@@ -29,3 +29,6 @@ void uart_write(char* s);
 void uart_writeln(char* s);
 
 void uart_async_init(void);
+
+//Выводит в порт один байт в ввиде HEX строки - 0xXX.
+void uart_writelnHEX(unsigned char c);

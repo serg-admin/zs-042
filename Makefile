@@ -100,6 +100,6 @@ clean:
 	rm -f *.o *.map *.out *.lst *.hex *.elf
 #-------------------
 get_asm: $(PRG).c
-	$(CC) $(CFLAGS) -o $(PRG).elf $(OBJ)
+	$(CC) $(CFLAGS) -o $(PRG).elf $(OBJ) $(OBJS)
 	$(OBJDUMP) -h -S $(PRG).elf > $(PRG).lst
 #-------------------
