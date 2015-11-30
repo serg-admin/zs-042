@@ -24,7 +24,6 @@ unsigned char i2c_send(char addr, unsigned char* buf, unsigned char size, void (
   i2c_size = size;
   i2c_callback = callback;
   i2c_state = I2C_STATE_SEND;
-  //while (!(TWCR & (1<<TWINT)));
   TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE); // Send START condition.
   return I2C_STATE_FREE;
 }
@@ -37,7 +36,6 @@ unsigned char i2c_recive( char addr, unsigned char* buf, unsigned char size, voi
   i2c_size = size;
   i2c_callback = callback;
   i2c_state = I2C_STATE_RECIVE;
-  //while (!(TWCR & (1<<TWINT)));
   TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE); // Send START condition.
   return I2C_STATE_FREE;
 }
@@ -76,8 +74,6 @@ void i2c_recive_isp(unsigned char state) {
       TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE); // Load SLA+W into TWDR Register. Clear TWINT bit in TWCR to start transmission of address.
       break;
     case TW_REP_START : //Шина I2C переведена в состояние start transmission. Запрашиваем устройство.
-      //TWDR = i2c_dev_addr;
-      //TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE); // Load SLA+W into TWDR Register. Clear TWINT bit in TWCR to start transmission of address.
       TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
       break;
     case TW_MR_SLA_ACK : // Устройство ответело, готово слать данные.
@@ -96,12 +92,9 @@ void i2c_recive_isp(unsigned char state) {
     case TW_MR_DATA_NACK : // Устройство ответело, пришел байт данных.
       i2c_buf[i2c_buf_pos++] = TWDR;
       if (i2c_buf_pos < i2c_size) {
-        //TWDR = i2c_dev_addr; // Запрашиваем следующий байт.
         TWDR = i2c_dev_addr;
         TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE); // Рестарт для следующего байта
-        //TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
       } else {
-        //TWDR = TW_MR_DATA_NACK; // Завершение передача
         TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); // Завершение передача
         i2c_state = I2C_STATE_FREE;
         i2c_callback(state);
