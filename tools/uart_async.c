@@ -20,28 +20,18 @@ ISR (USART_UDRE_vect) {
   sei();
 }
 
-// Прерывание - завершение передачи.
-ISR (USART_TX_vect) {
-  cli();
-
-  sei();
-}
-
 // Прерывание - Пришел байт данных.
 ISR (USART_RX_vect) {
- // uart_writeln("fff");
   if (uart_readln_callback == 0) return;
-  
   cli();
   while (UCSR0A & _BV(RXC0)) {
-    if ((UDR0 == 0x0A) || (UDR0 == 0x0D)) {
+    unsigned char t = UDR0; // Из порта байт можно прочитать только один раз.
+    if ((t == 0x0A) || (t == 0x0D)) {
       uart_read_buf[uart_read_wPos] = 0; //Конец строки
       uart_readln_callback(uart_read_buf);
       uart_read_wPos = 0;
     } else {
-      uart_read_buf[uart_read_wPos++] = UDR0;
-      uart_read_buf[uart_read_wPos] = 0; //Конец строки
-      uart_readln_callback(uart_read_buf);
+      uart_read_buf[uart_read_wPos++] = t;
     }
   }
   sei();
@@ -55,11 +45,10 @@ void uart_async_init(void) {
    uart_wPos = 0;
    uart_rPos = 0;
    // Разрешить прием, передачу через порт.
-   UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(TXCIE0)| _BV(RXCIE0) ;//| _BV(UDRIE0);
+   UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(RXCIE0) ;
    // Устанавливаем скорость порта.
    UBRR0 = MYBDIV;
    UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
-   UCSR0A |= _BV(U2X0);
 }
 
 // Возвращает количество свободных байт в очереди USART.
@@ -75,7 +64,6 @@ char uart_getBufSpace() {
 void uart_putChar(char c) {
   if (uart_getBufSpace() == 0) return;
   UCSR0B &= ~(_BV(UDRIE0));
-  UCSR0B &= ~(_BV(TXCIE0));
   uart_buf[uart_wPos++] = c;
   if (uart_wPos >= UART0_BUFER_SIZE) uart_wPos = 0;
   if (UCSR0A & _BV(UDRE0)){
@@ -84,7 +72,6 @@ void uart_putChar(char c) {
       if (uart_rPos >= UART0_BUFER_SIZE) uart_rPos = 0;
     }
   }
-  //UCSR0B |= _BV(TXCIE0);
   UCSR0B |= _BV(UDRIE0);
 }
 

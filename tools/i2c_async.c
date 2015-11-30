@@ -59,13 +59,13 @@ void i2c_send_isp(unsigned char state) {
       } else { // Если в буфере данных нет завершаем передачу
         TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); // Завершение передача
         i2c_state = I2C_STATE_FREE;
-        i2c_callback(state);
+        if (i2c_callback != 0) i2c_callback(state);
       }
       break;
     default :
       TWCR = 0; // Завершение передача
       i2c_state = I2C_STATE_FREE;
-      i2c_callback(state);
+      if (i2c_callback != 0) i2c_callback(state);
   }
 }
 

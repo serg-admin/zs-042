@@ -10,11 +10,11 @@
 #define FOSC 16000000 // Clock Speed
 
 //#define BAUD 2400
-//#define BAUD 38400
-#define BAUD 57600
+#define BAUD 38400
+//#define BAUD 57600
 //#define BAUD 115200
 
-#define MYBDIV (FOSC / 8 / BAUD - 1)
+#define MYBDIV (FOSC / 16 / BAUD - 1)
 #define UART0_BUFER_SIZE 32
 #define UART0_READ_BUFER_SIZE 32
 
