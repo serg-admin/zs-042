@@ -6,18 +6,17 @@
              погрешности несущей частоты что делает невозможной работу порта.
              Смотрите документацию на микропроцессор
 */
-#ifndef FOSC
-  #define FOSC 16000000 // Clock Speed
-#endif /* END FOSC */
 
-#ifndef BAUD
-  #define BAUD 38400
-#endif /* END BAUD */
-#define MYBDIV (FOSC / 16 / BAUD - 1)
+#define FOSC 16000000 // Clock Speed
 
-#ifndef USART0_BUFER_SIZE
-  #define UART0_BUFER_SIZE 64
-#endif /* UART0_BUFER_SIZE */
+//#define BAUD 2400
+//#define BAUD 38400
+#define BAUD 57600
+//#define BAUD 115200
+
+#define MYBDIV (FOSC / 8 / BAUD - 1)
+#define UART0_BUFER_SIZE 32
+#define UART0_READ_BUFER_SIZE 32
 
 //Отправляет один байт в очередь USART. В случае если очередь занята - ждет.
 void uart_putChar(char c);
@@ -32,3 +31,7 @@ void uart_async_init(void);
 
 //Выводит в порт один байт в ввиде HEX строки - 0xXX.
 void uart_writelnHEX(unsigned char c);
+
+// Вычитывает с порта строку до окончания строки, и возвращает в callBack функцию.
+// Строка завершается нулем. CallBack функция будет вызываться для каждой полученной строки.
+void uart_readln(void (*callback)(char*));

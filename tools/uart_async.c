@@ -3,27 +3,63 @@
 #include <avr/sleep.h>
 #include "uart_async.h"
 
-static unsigned char uart_buf[UART0_BUFER_SIZE];
-static unsigned char uart_wPos = 0; // Позиция буфера для записи новых данных.
-static unsigned char uart_rPos = 0; // Позиция буфера для передачи в порт.
+unsigned char uart_buf[UART0_BUFER_SIZE];
+char uart_read_buf[UART0_READ_BUFER_SIZE];
+unsigned char uart_read_wPos = 0;
+unsigned char uart_wPos = 0; // Позиция буфера для записи новых данных.
+unsigned char uart_rPos = 0; // Позиция буфера для передачи в порт.
+void (*uart_readln_callback)(char*) = 0;
 
-// Прерывание - завершение передачи.
-ISR (USART_TX_vect) {
+
+ISR (USART_UDRE_vect) {
   cli();
   if (uart_wPos != uart_rPos) {
     UDR0 = uart_buf[uart_rPos++];
     if (uart_rPos >= UART0_BUFER_SIZE) uart_rPos = 0;
+  } else UCSR0B &= ~(_BV(UDRIE0));
+  sei();
+}
+
+// Прерывание - завершение передачи.
+ISR (USART_TX_vect) {
+  cli();
+
+  sei();
+}
+
+// Прерывание - Пришел байт данных.
+ISR (USART_RX_vect) {
+ // uart_writeln("fff");
+  if (uart_readln_callback == 0) return;
+  
+  cli();
+  while (UCSR0A & _BV(RXC0)) {
+    if ((UDR0 == 0x0A) || (UDR0 == 0x0D)) {
+      uart_read_buf[uart_read_wPos] = 0; //Конец строки
+      uart_readln_callback(uart_read_buf);
+      uart_read_wPos = 0;
+    } else {
+      uart_read_buf[uart_read_wPos++] = UDR0;
+      uart_read_buf[uart_read_wPos] = 0; //Конец строки
+      uart_readln_callback(uart_read_buf);
+    }
   }
   sei();
 }
 
+void uart_readln(void (*callback)(char*)) {
+  uart_readln_callback = callback;
+}
+
 void uart_async_init(void) {
-   // Разрешить передачу через порт.
-   UCSR0B |= _BV(TXEN0);
-   // Активировать прерывание.
-   UCSR0B |= _BV(TXCIE0);
+   uart_wPos = 0;
+   uart_rPos = 0;
+   // Разрешить прием, передачу через порт.
+   UCSR0B = _BV(TXEN0) | _BV(RXEN0) | _BV(TXCIE0)| _BV(RXCIE0) ;//| _BV(UDRIE0);
    // Устанавливаем скорость порта.
    UBRR0 = MYBDIV;
+   UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
+   UCSR0A |= _BV(U2X0);
 }
 
 // Возвращает количество свободных байт в очереди USART.
@@ -38,6 +74,7 @@ char uart_getBufSpace() {
 // Отправляет один байт в очередь USART. В случае если очередь занята - ждет.
 void uart_putChar(char c) {
   if (uart_getBufSpace() == 0) return;
+  UCSR0B &= ~(_BV(UDRIE0));
   UCSR0B &= ~(_BV(TXCIE0));
   uart_buf[uart_wPos++] = c;
   if (uart_wPos >= UART0_BUFER_SIZE) uart_wPos = 0;
@@ -47,7 +84,8 @@ void uart_putChar(char c) {
       if (uart_rPos >= UART0_BUFER_SIZE) uart_rPos = 0;
     }
   }
-  UCSR0B |= _BV(TXCIE0);
+  //UCSR0B |= _BV(TXCIE0);
+  UCSR0B |= _BV(UDRIE0);
 }
 
 // Отправляет 0 терменированную строку в очередь USART.

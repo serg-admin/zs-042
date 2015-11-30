@@ -92,7 +92,7 @@ $(OBJ) : $(PRG).c
 %.o : %.c
 	$(CC) -c $(CFLAGS) $< -o $@
 pro_mini: $(PRG).c
-	avrdude -c arduino -F -P /dev/ttyUSB1 -p $(MCU_TARGET) -b 57600  -U flash:w:$(PRG).hex:i
+	avrdude -c arduino -F -P /dev/ttyUSB0 -p $(MCU_TARGET) -b 57600  -U flash:w:$(PRG).hex:i
 leonardo: $(PRG).hex
 	avrdude -c avr109 -F -P /dev/ttyACM1 -p m32u4 -U flash:w:$(PRG).hex:i
 #-------------------
