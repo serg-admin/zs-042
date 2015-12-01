@@ -33,6 +33,28 @@
  *      OK   - подтверждение отправки первой команды
  *      0x1C - 28 градусов цельсия
  *      0x80 - еще 0.5 градусов цельсия, и того 28.5 градусов.
+ *
+ *  Прочитать текущее время:
+ *    xD000
+ *    xD103 - Секунды, минуты, часы.
+ *
+ *  Установить на выходе SQW импульсы 1 Hz
+ *    xD00E00 - В регистра состояния азаписываем 0;
+ *
+ *  Включить первый будильник:
+ *    xD00E05 - В регистр 0E пишем b00000101
+ *              bit 2 - INTCN - генерация импульсов/будильник
+ *              bit 1 - A2IE  - включить второй будильник
+ *              bit 0 - A1IE  - включить первый будильник
+ *   
+ *  Первый будильник раз в минуту:
+ *    xD00700808080 - начиная с седмого ригистра пишем:
+ *                    b00000000 - срабатывать в 0 секунд;
+ *                    b10000000 - на минуты забить;
+ *                    b10000000 - на часы забить;
+ *                    b10000000 - на дни и все такое то же забить.
+ *          После каждого срабатывания будильника нужно сбрасывать бит 0 регистра 0F
+ * 
  * 
  *   Регистры чипа DS3231 (шоб не искать каждый раз).
  *   АДРЕС  BIT 7    BIT 6   BIT 5   BIT 4   BIT 3   BIT 2   BIT 1   BIT 0    ФУНКЦИЯ    ДИАПАЗОН
@@ -66,6 +88,26 @@
  *                                                                            0.0,0.25,0.5,0.75
  * 
  *  *Настройки переодичности будильников в документации к чипу
+ *  =========================================================================================================
+ *
+ *  AT24C32
+ *  I2C адрес чипа:
+ *
+ *  |  1  |  0  |  1  |  0  | A2  | A1  | A0  | R/W |
+ *
+ *  По умолчанию: AE - запись, AF - Чтение.
+ *
+ *    Запись одного байта eeprom:
+ *      xAE000001
+ *        x  - префикс шеснадцатиричной команды;
+ *        AE - номер I2C устройства для записи данных;
+ *        0000 - адрес памати eeprom (0x0000-0x0FFF);
+ *        01 - байт данных.
+ *    За одну операцию можно записать не более 32-байт.
+ *
+ *    Чтение eeprom:
+ *      xAE0000  - Встать на ячейку 0000
+ *      xAF01    - Прочитать один байт из eeprom
  */
 
 #include <avr/io.h>
@@ -81,6 +123,7 @@
 //  0xD0 - for write, and 0xD1 for read
 #define DS3231_ADDRESS 0xD0
 #define DS3231_BUF_SIZE 16
+#define AT24C32_ADDRESS 0xAE
 #define HEX_CMD_MAX_SIZE 16
 unsigned char ds3231_buf[DS3231_BUF_SIZE];
 
@@ -111,6 +154,10 @@ void callBackForRequestRtcData(unsigned char result) {
       uart_write("ERROR ");
       uart_writelnHEX(result);
   }
+}
+
+ISR (INT0_vect) {
+  uart_writeln("INT0");
 }
 
 // Прерывание переполнения таймера
@@ -158,7 +205,7 @@ void zs042_set1Hz(void) {
   ds3231_buf[0] = 0x0E; 
   // Импульсы  1HZ
   ds3231_buf[1] = 0x00;
-  i2c_send(0xD0, ds3231_buf, 2, 0);  
+  i2c_send(0xD0, ds3231_buf, 2, 0);
 }
 
 unsigned char hexToCharOne(char c) {
@@ -213,7 +260,24 @@ void callBackForReciveI2CData(unsigned char result) {
       default : 
         uart_write("ERROR ");
         uart_writelnHEX(result);
+        for(i = 0; i<commands_reciver_param3[0]; i++) {
+          uart_writelnHEX(ds3231_buf[i]);
+        }
   }
+}
+
+void command_put_send_i2c(byte* cmd, byte size) {
+  commands_reciver_param1 = cmd; //Адрес устройства
+  commands_reciver_param2 = (cmd+1); //Массив для отправки
+  cmd[HEX_CMD_MAX_SIZE-1] = size - 1;
+  commands_reciver_param3 = (cmd + HEX_CMD_MAX_SIZE-1); //Количество отправляемых байт
+  queue_putTask(COMMAND_SEND_I2C);
+}
+
+void command_put_recive_i2c(byte* cmd, byte size) {
+  commands_reciver_param1 = cmd; //Адрес устройства
+  commands_reciver_param3 = (cmd+1); //Количество получаемых байт
+  queue_putTask(COMMAND_RECIVE_I2C);
 }
 
 void commands_reciver(char* str) {
@@ -234,19 +298,18 @@ void commands_reciver(char* str) {
     }
     switch (cmd[0]) {
       case DS3231_ADDRESS : // отправить на RTC zs-042
-        commands_reciver_param1 = cmd; //Адрес устройства
-        commands_reciver_param2 = (cmd+1); //Массив для отправки
-        cmd[HEX_CMD_MAX_SIZE-1] = pos - 1;
-        commands_reciver_param3 = (cmd + HEX_CMD_MAX_SIZE-1); //Количество отправляемых байт
-        queue_putTask(COMMAND_SEND_I2C);
+        command_put_send_i2c(cmd, pos);
         break;
       case DS3231_ADDRESS+1 : // прочитать с RTC zs-042
-        commands_reciver_param1 = cmd; //Адрес устройства
-        commands_reciver_param3 = (cmd+1); //Количество получаемых байт
-        queue_putTask(COMMAND_RECIVE_I2C);
+        command_put_recive_i2c(cmd, pos);
         break;
-      case COMMAND_GET_DATE :
-        //queue_putTask(DO_REQUEST_RTC_DATA_START);
+      case COMMAND_GET_DATE : // Запись EPROM
+        queue_putTask(DO_REQUEST_RTC_DATA_START);
+      case AT24C32_ADDRESS :
+        command_put_send_i2c(cmd, pos);
+        break;
+      case AT24C32_ADDRESS+1 : // прочитать с EPROM zs-042
+        command_put_recive_i2c(cmd, pos);
         break;
       default : 
         uart_write("UNKNOW COMM "); uart_writelnHEX(cmd[0]);
@@ -254,23 +317,25 @@ void commands_reciver(char* str) {
   }
 }
 
-void stub(unsigned char result) {
-  uart_write("==");
-  uart_writelnHEX(result);
+void init_int0(void) {
+  PORTD |= _BV(PD2); // подключаем pull-up резистор
+  EIMSK |= _BV(INT0); // Активируем прерывание
+  // Срабатывание по краю падения уровня
+  EICRA |= _BV(ISC01);
+  EICRA &= ~(_BV(ISC00));
 }
-
 int main(void) {
-
   // Разрешить светодиод arduino pro mini.
   DDRB |= _BV(DDB5);
   timer_init();
   uart_async_init();
   i2c_init();
   queue_init();
+  init_int0();
   // Разрешить прерывания.
   sei();
-  
   uart_readln(&commands_reciver);
+  uart_writeln("start");
   // Бесконечный цикл с энергосбережением.
   for(;;) {
     switch(queue_getTask()) {

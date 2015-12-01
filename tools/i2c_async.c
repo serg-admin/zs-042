@@ -60,6 +60,15 @@ void i2c_send_isp(unsigned char state) {
         if (i2c_callback != 0) i2c_callback(state);
       }
       break;
+    case TW_MT_SLA_NACK : 
+      if (i2c_buf_pos < i2c_size) { // Если в буфере есть данные - продолжаем передачу
+        TWDR = i2c_buf[i2c_buf_pos++];
+        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
+      } else { // Если в буфере данных нет завершаем передачу
+        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO); // Завершение передача
+        i2c_state = I2C_STATE_FREE;
+        if (i2c_callback != 0) i2c_callback(state);
+      }
     default :
       TWCR = 0; // Завершение передача
       i2c_state = I2C_STATE_FREE;
@@ -79,6 +88,9 @@ void i2c_recive_isp(unsigned char state) {
     case TW_MR_SLA_ACK : // Устройство ответело, готово слать данные.
         TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
       break;
+/*    case TW_MR_SLA_NACK : // Устройство ответело, готово слать данные.
+        TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
+      break;*/
     case TW_MR_DATA_ACK : // Устройство ответело, пришел байт данных.
       i2c_buf[i2c_buf_pos++] = TWDR;
       if (i2c_buf_pos < i2c_size) {
@@ -103,7 +115,7 @@ void i2c_recive_isp(unsigned char state) {
     case TW_MT_SLA_NACK : //Мы такие быстрые, что шина не сбросилась после передачи - сбрасываем. 
       TWDR = i2c_dev_addr;
       TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE); // Рестарт для следующего байта
-      break;  
+      break;
     default :
       TWCR = 0; // Завершение передача
       i2c_state = I2C_STATE_FREE;

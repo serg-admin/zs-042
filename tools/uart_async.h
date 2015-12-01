@@ -15,7 +15,7 @@
 //#define BAUD 115200
 
 #define MYBDIV (FOSC / 16 / BAUD - 1)
-#define UART0_BUFER_SIZE 32
+#define UART0_BUFER_SIZE 128
 #define UART0_READ_BUFER_SIZE 32
 
 //Отправляет один байт в очередь USART. В случае если очередь занята - ждет.

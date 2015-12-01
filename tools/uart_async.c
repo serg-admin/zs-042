@@ -23,6 +23,7 @@ ISR (USART_UDRE_vect) {
 // Прерывание - Пришел байт данных.
 ISR (USART_RX_vect) {
   if (uart_readln_callback == 0) return;
+  PORTB ^= _BV(PINB5);
   cli();
   while (UCSR0A & _BV(RXC0)) {
     unsigned char t = UDR0; // Из порта байт можно прочитать только один раз.
